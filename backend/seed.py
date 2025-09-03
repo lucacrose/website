@@ -24,9 +24,6 @@ def wipe_and_seed():
         items = []
 
         for i, item in enumerate(data, start=1):
-            if i < 152:
-                continue
-            
             points = []
 
             item_obj = Item(id=item["item_id"], name=item["item_details_data"]["item_name"])
@@ -50,7 +47,7 @@ def wipe_and_seed():
 
             db.add(item_obj)
 
-            if i % 8 == 0:
+            if i % 16 == 0:
                 db.commit()
                 db.expunge_all()
 

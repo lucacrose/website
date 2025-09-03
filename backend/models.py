@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BigInteger, String, Float, DateTime, ForeignKey
+from sqlalchemy import Column, BigInteger, String, DateTime, ForeignKey, Numeric
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -15,7 +15,7 @@ class TimeSeriesPoint(Base):
     timestamp = Column(DateTime, index=True)
     favorited = Column(BigInteger)
     rap = Column(BigInteger)
-    best_price = Column(BigInteger)
+    best_price = Column(Numeric(precision=19, scale=0))
     num_sellers = Column(BigInteger)
 
     item = relationship("Item", back_populates="time_series")
