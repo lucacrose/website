@@ -5,12 +5,15 @@ from sqlalchemy.orm import Session
 from database import Base, engine, get_db
 from models import Item
 from seed import seed, wipe
+from fastapi.middleware.gzip import GZipMiddleware
 
 Base.metadata.create_all(bind=engine)
 
 seed()
 
 app = FastAPI()
+
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 app.add_middleware(
     CORSMiddleware,
