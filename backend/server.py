@@ -28,16 +28,15 @@ def hello():
 def echo(data: dict):
     return {"you_sent": data}
 
-@app.get("/item/{item_abbreviation}")
-def get_item(item_abbreviation: str, db: Session = Depends(get_db)):
-    item = db.query(Item).filter(Item.abbreviation == item_abbreviation).first()
+@app.get("/item/{item_id}")
+def get_item(item_id: str, db: Session = Depends(get_db)):
+    item = db.query(Item).filter(Item.id == item_id).first()
     if item is None:
         raise HTTPException(status_code=404, detail="Item not found")
     return {
-        "abbreviation": item.abbreviation,
-        "name": item.name,
-        "value": item.value
+        "id": item.id,
+        "name": item.name
     }
 
 if __name__ == "__main__":
-    uvicorn.run("server:app", host="127.0.0.1", port=5001, reload=True)
+    uvicorn.run("server:app", host="127.0.0.1", port=5000, reload=True)

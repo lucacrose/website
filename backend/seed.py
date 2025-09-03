@@ -1,5 +1,12 @@
 from database import SessionLocal, Base, engine
 from models import Item
+from dotenv import load_dotenv
+import os
+import json
+
+load_dotenv()
+
+ITEM_DATA_FILE_PATH = os.getenv("ITEM_DATA_FILE_PATH")
 
 Base.metadata.create_all(bind=engine)
 
@@ -10,11 +17,13 @@ def wipe_and_seed():
     db = SessionLocal()
 
     try:
-        items = [
-            Item(abbreviation="RS", name="Rare Sword", value=1000),
-            Item(abbreviation="EH", name="Epic Hat", value=500),
-            Item(abbreviation="LS", name="Legendary Shield", value=2500)
-        ]
+        with open(ITEM_DATA_FILE_PATH, "r") as f:
+            data = json.loads(f.read())
+
+        items = []
+
+        for item in data:
+            items.append(Item(id=item["item_id"], name=item["item_details_data"]["item_name"]))
 
         db.add_all(items)
         db.commit()
