@@ -11,13 +11,21 @@ ITEM_DATA_FILE_PATH = os.getenv("ITEM_DATA_FILE_PATH")
 
 Base.metadata.create_all(bind=engine)
 
-def wipe_and_seed():
+def wipe():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+    print("Database wiped successfully")
 
+def seed():
     db = SessionLocal()
 
     try:
+        existing_count = db.query(Item).count()
+
+        if existing_count > 0:
+            print(f"Database already has {existing_count} items. Skipping seed.")
+            return
+        
         with open(ITEM_DATA_FILE_PATH, "r") as f:
             data = json.loads(f.read())
 
@@ -53,6 +61,6 @@ def wipe_and_seed():
 
         db.commit()
 
-        print("Database wiped and seeded successfully")
+        print("Database seeded successfully")
     finally:
         db.close()

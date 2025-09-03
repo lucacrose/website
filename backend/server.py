@@ -4,11 +4,11 @@ import uvicorn
 from sqlalchemy.orm import Session
 from database import Base, engine, get_db
 from models import Item
-from seed import wipe_and_seed
+from seed import seed, wipe
 
 Base.metadata.create_all(bind=engine)
 
-wipe_and_seed()
+seed()
 
 app = FastAPI()
 
