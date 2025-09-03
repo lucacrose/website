@@ -37,10 +37,10 @@ def seed():
             item_obj = Item(id=item["item_id"], name=item["item_details_data"]["item_name"])
 
             for j in range(item["history_data"]["num_points"]):
-                timestamp = item["history_data"]["timestamp"][j]
+                timestamp = item["history_data"]["timestamp"][j] / 3600
                 favorited = item["history_data"]["favorited"][j]
                 rap = item["history_data"]["rap"][j]
-                best_price = item["history_data"]["best_price"][j]
+                best_price = item["history_data"]["best_price"][j] - 2 ** 63
                 num_sellers = item["history_data"]["num_sellers"][j]
 
                 point = TimeSeriesPoint(timestamp=timestamp, favorited=favorited, rap=rap, best_price=best_price, num_sellers=num_sellers)
