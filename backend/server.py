@@ -41,7 +41,7 @@ def get_item(item_id: int, db: Session = Depends(get_db)):
     stmt = (
         db.query(
             TimeSeriesPoint.timestamp,
-            TimeSeriesPoint.best_price,
+            (TimeSeriesPoint.best_price + 2**63).label("best_price"),
             TimeSeriesPoint.rap,
             TimeSeriesPoint.favorited
         )
