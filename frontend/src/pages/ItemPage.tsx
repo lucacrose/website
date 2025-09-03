@@ -14,7 +14,7 @@ function ItemPage() {
   useEffect(() => {
     if (!itemId) return;
 
-    fetch(`http://localhost:5000/api/item/${itemId}`)
+    fetch(`http://localhost:5000/item/${itemId}`)
       .then(res => res.json())
       .then(data => setItem(data));
   }, [itemId]);
@@ -24,7 +24,7 @@ function ItemPage() {
   return (
     <>
       <h1>{item.name}</h1>
-      <p>Value: {item.value}</p>
+      <p>Id: {item.id}</p>
     </>
   );
 }
