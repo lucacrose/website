@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from sqlalchemy.orm import Session
 from database import Base, engine, get_db
-from models import Item
+from models import Item, TimeSeriesPoint
 from seed import seed, wipe
 from fastapi.middleware.gzip import GZipMiddleware
 
@@ -32,14 +32,35 @@ def echo(data: dict):
     return {"you_sent": data}
 
 @app.get("/item/{item_id}")
-def get_item(item_id: str, db: Session = Depends(get_db)):
-    item = db.query(Item).filter(Item.id == item_id).first()
-    if item is None:
+def get_item(item_id: int, db: Session = Depends(get_db)):
+    item = db.query(Item.id, Item.name).filter(Item.id == item_id).first()
+
+    if not item:
         raise HTTPException(status_code=404, detail="Item not found")
+
+    stmt = (
+        db.query(
+            TimeSeriesPoint.timestamp,
+            TimeSeriesPoint.best_price,
+            TimeSeriesPoint.rap,
+            TimeSeriesPoint.favorited
+        )
+        .filter(TimeSeriesPoint.item_id == item_id)
+        .order_by(TimeSeriesPoint.timestamp)
+    )
+
+    rows = stmt.all()
+    timestamps, best_prices, raps, favorited = zip(*rows) if rows else ([], [], [], [])
+
     return {
         "id": item.id,
         "name": item.name,
-        "time_series": item.time_series
+        "time_series": {
+            "timestamp": list(map(int, timestamps)),
+            "best_price": list(map(int, best_prices)),
+            "rap": list(raps),
+            "favorited": list(favorited)
+        }
     }
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ class TimeSeriesPoint(Base):
     __tablename__ = "time_series_points"
     id = Column(BigInteger, primary_key=True, index=True)
     item_id = Column(BigInteger, ForeignKey("items.id"))
-    timestamp = Column(DateTime, index=True)
+    timestamp = Column(BigInteger, index=True)
     favorited = Column(BigInteger)
     rap = Column(BigInteger)
     best_price = Column(Numeric(precision=19, scale=0))

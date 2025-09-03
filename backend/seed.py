@@ -43,7 +43,7 @@ def seed():
                 best_price = item["history_data"]["best_price"][j]
                 num_sellers = item["history_data"]["num_sellers"][j]
 
-                point = TimeSeriesPoint(timestamp=datetime.utcfromtimestamp(timestamp), favorited=favorited, rap=rap, best_price=best_price, num_sellers=num_sellers)
+                point = TimeSeriesPoint(timestamp=timestamp, favorited=favorited, rap=rap, best_price=best_price, num_sellers=num_sellers)
 
                 points.append(point)
 
