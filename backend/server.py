@@ -35,7 +35,8 @@ def get_item(item_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Item not found")
     return {
         "id": item.id,
-        "name": item.name
+        "name": item.name,
+        "time_series": item.time_series
     }
 
 if __name__ == "__main__":
