@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
-from sqlalchemy import select
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from database import Base, engine, get_db
 from models import Item, TimeSeriesPoint
@@ -24,6 +24,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+INTERVALS_LENGTHS = {
+    "8h": 1,
+    "24h": 3,
+    "3d": 3 * 3,
+    "7d": 3 * 7,
+}
 
 @app.get("/api/hello")
 def hello():
@@ -48,7 +55,7 @@ def get_item(item_id: int, db: Session = Depends(get_db)):
 @app.get("/item/{item_id}/graph")
 def get_graph(
     item_id: int,
-    interval: Literal["8h", "1d", "3d", "1w"] = Query(
+    interval: Literal["8h", "1d", "3d", "7d"] = Query(
         "1d", description="Aggregation interval"
     ),
     chart_type: Literal["line", "candle"] = Query(
@@ -62,37 +69,81 @@ def get_graph(
     item = db.get(Item, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
+
+    bucket_size = INTERVALS_LENGTHS.get(interval, 3)
+
+    bucket_expr = (TimeSeriesPoint.timestamp // bucket_size) * bucket_size
     
-    fields = [TimeSeriesPoint.timestamp]
-    allowed_vars = {"best_price", "rap", "favorited", "num_sellers"}
-    selected_vars = [v for v in variables if v in allowed_vars]
+    if chart_type == "line":
+        fields = [bucket_expr.label("bucket")]
+        if "best_price" in variables:
+            fields.append(func.avg(TimeSeriesPoint.best_price).label("best_price"))
+        if "rap" in variables:
+            fields.append(func.avg(TimeSeriesPoint.rap).label("rap"))
+        if "favorited" in variables:
+            fields.append(func.avg(TimeSeriesPoint.favorited).label("favorited"))
+        if "num_sellers" in variables:
+            fields.append(func.avg(TimeSeriesPoint.favorited).label("num_sellers"))
 
-    for v in selected_vars:
-        fields.append(getattr(TimeSeriesPoint, v))
+        query = db.query(*fields).filter(TimeSeriesPoint.item_id == item_id)
 
-    query = select(*fields).where(TimeSeriesPoint.item_id == item_id)
+        if start_ts:
+            query = query.filter(TimeSeriesPoint.timestamp >= start_ts)
+        if end_ts:
+            query = query.filter(TimeSeriesPoint.timestamp <= end_ts)
 
-    if start_ts:
-        query = query.where(TimeSeriesPoint.timestamp >= start_ts)
-    
-    if end_ts:
-        query = query.where(TimeSeriesPoint.timestamp <= end_ts)
+        query = query.group_by("bucket").order_by("bucket")
+        rows = query.all()
 
-    query = query.order_by(TimeSeriesPoint.timestamp)
+        data = {"timestamp": [r[0] for r in rows]}
+        for i, var in enumerate(variables, start=1):
+            if var in ["best_price", "rap", "favorited", "num_sellers"]:
+                data[var] = [r[i] for r in rows]
 
-    rows = db.execute(query).all()
+    elif chart_type == "candle":
+        if "best_price" not in variables:
+            raise HTTPException(status_code=400, detail="Candles require best_price variable")
 
-    if rows:
-        unpacked = list(zip(*rows))
-        data = {"timestamp": list(unpacked[0])}
-        for i, var in enumerate(selected_vars, start=1):
-            data[var] = list(unpacked[i])
+        subquery = (
+            db.query(
+                bucket_expr.label("bucket"),
+                TimeSeriesPoint.timestamp,
+                TimeSeriesPoint.best_price
+            )
+            .filter(TimeSeriesPoint.item_id == item_id)
+        )
+
+        if start_ts:
+            subquery = subquery.filter(TimeSeriesPoint.timestamp >= start_ts)
+        if end_ts:
+            subquery = subquery.filter(TimeSeriesPoint.timestamp <= end_ts)
+
+        subquery = subquery.subquery()
+
+        query = db.query(
+            subquery.c.bucket,
+            func.min(subquery.c.best_price).label("low"),
+            func.max(subquery.c.best_price).label("high"),
+            func.first_value(subquery.c.best_price).over(
+                partition_by=subquery.c.bucket, order_by=subquery.c.timestamp
+            ).label("open"),
+            func.last_value(subquery.c.best_price).over(
+                partition_by=subquery.c.bucket, order_by=subquery.c.timestamp
+            ).label("close")
+        ).group_by(subquery.c.bucket).order_by(subquery.c.bucket)
+
+        rows = query.all()
+
+        data = {
+            "timestamp": [r.bucket for r in rows],
+            "open": [r.open for r in rows],
+            "high": [r.high for r in rows],
+            "low": [r.low for r in rows],
+            "close": [r.close for r in rows]
+        }
+
     else:
-        data = {"timestamp": []}
-        for var in selected_vars:
-            data[var] = []
-
-    rows = db.execute(query).all()
+        raise HTTPException(status_code=400, detail="Invalid chart_type")
 
     return data
 
