@@ -1,4 +1,4 @@
-from sqlalchemy import Column, SmallInteger, Integer, BigInteger, String, ForeignKey
+from sqlalchemy import Column, SmallInteger, Integer, BigInteger, String, ForeignKey, Index
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -19,3 +19,7 @@ class TimeSeriesPoint(Base):
     num_sellers = Column(SmallInteger)
 
     item = relationship("Item", back_populates="time_series")
+
+    __table_args__ = (
+        Index("idx_itemid_timestamp", "item_id", "timestamp"),
+    )

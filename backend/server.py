@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from database import Base, engine, get_db
 from models import Item, TimeSeriesPoint
@@ -33,13 +34,13 @@ def echo(data: dict):
 
 @app.get("/item/{item_id}")
 def get_item(item_id: int, db: Session = Depends(get_db)):
-    item = db.query(Item.id, Item.name).filter(Item.id == item_id).first()
+    item = db.get(Item, item_id)
 
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
     stmt = (
-        db.query(
+        select(
             TimeSeriesPoint.timestamp,
             (TimeSeriesPoint.best_price + 2**63).label("best_price"),
             TimeSeriesPoint.rap,
@@ -49,7 +50,7 @@ def get_item(item_id: int, db: Session = Depends(get_db)):
         .order_by(TimeSeriesPoint.timestamp)
     )
 
-    rows = stmt.all()
+    rows = db.execute(stmt).all()
     timestamps, best_prices, raps, favorited = zip(*rows) if rows else ([], [], [], [])
 
     return {
