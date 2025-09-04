@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from sqlalchemy import select
@@ -7,6 +7,7 @@ from database import Base, engine, get_db
 from models import Item, TimeSeriesPoint
 from seed import seed, wipe
 from fastapi.middleware.gzip import GZipMiddleware
+from typing import Literal, List
 
 Base.metadata.create_all(bind=engine)
 
@@ -39,30 +40,61 @@ def get_item(item_id: int, db: Session = Depends(get_db)):
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
-    stmt = (
-        select(
-            TimeSeriesPoint.timestamp,
-            (TimeSeriesPoint.best_price + 2**63).label("best_price"),
-            TimeSeriesPoint.rap,
-            TimeSeriesPoint.favorited
-        )
-        .filter(TimeSeriesPoint.item_id == item_id)
-        .order_by(TimeSeriesPoint.timestamp)
-    )
-
-    rows = db.execute(stmt).all()
-    timestamps, best_prices, raps, favorited = zip(*rows) if rows else ([], [], [], [])
-
     return {
         "id": item.id,
-        "name": item.name,
-        "time_series": {
-            "timestamp": list(map(int, timestamps)),
-            "best_price": list(map(int, best_prices)),
-            "rap": list(raps),
-            "favorited": list(favorited)
-        }
+        "name": item.name
     }
+
+@app.get("/item/{item_id}/graph")
+def get_graph(
+    item_id: int,
+    interval: Literal["8h", "1d", "3d", "1w"] = Query(
+        "1d", description="Aggregation interval"
+    ),
+    chart_type: Literal["line", "candle"] = Query(
+        "line", description="Chart type"
+    ),
+    start_ts: int | None = None,
+    end_ts: int | None = None,
+    variables: List[str] = Query(["rap"], description="Included variables"),
+    db: Session = Depends(get_db)
+):
+    item = db.get(Item, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    
+    fields = [TimeSeriesPoint.timestamp]
+    allowed_vars = {"best_price", "rap", "favorited", "num_sellers"}
+    selected_vars = [v for v in variables if v in allowed_vars]
+
+    for v in selected_vars:
+        fields.append(getattr(TimeSeriesPoint, v))
+
+    query = select(*fields).where(TimeSeriesPoint.item_id == item_id)
+
+    if start_ts:
+        query = query.where(TimeSeriesPoint.timestamp >= start_ts)
+    
+    if end_ts:
+        query = query.where(TimeSeriesPoint.timestamp <= end_ts)
+
+    query = query.order_by(TimeSeriesPoint.timestamp)
+
+    rows = db.execute(query).all()
+
+    if rows:
+        unpacked = list(zip(*rows))
+        data = {"timestamp": list(unpacked[0])}
+        for i, var in enumerate(selected_vars, start=1):
+            data[var] = list(unpacked[i])
+    else:
+        data = {"timestamp": []}
+        for var in selected_vars:
+            data[var] = []
+
+    rows = db.execute(query).all()
+
+    return data
 
 if __name__ == "__main__":
     uvicorn.run("server:app", host="127.0.0.1", port=5000, reload=True)
