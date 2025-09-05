@@ -26,10 +26,10 @@ app.add_middleware(
 )
 
 INTERVALS_LENGTHS = {
-    "8h": 1,
-    "24h": 3,
-    "3d": 3 * 3,
-    "7d": 3 * 7,
+    "8h": 8,
+    "1d": 8 * 3,
+    "3d": 8 * 3 * 3,
+    "7d": 8 * 3 * 7,
 }
 
 @app.get("/api/hello")
