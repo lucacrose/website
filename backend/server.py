@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
-from sqlalchemy import func
+from sqlalchemy import func, literal
 from sqlalchemy.orm import Session
 from database import Base, engine, get_db
 from models import Item, TimeSeriesPoint
@@ -77,13 +77,13 @@ def get_graph(
     if chart_type == "line":
         fields = [bucket_expr.label("bucket")]
         if "best_price" in variables:
-            fields.append(func.avg(TimeSeriesPoint.best_price).label("best_price"))
+            fields.append((func.avg(TimeSeriesPoint.best_price) + literal(2 ** 63)).label("best_price"))
         if "rap" in variables:
             fields.append(func.avg(TimeSeriesPoint.rap).label("rap"))
         if "favorited" in variables:
             fields.append(func.avg(TimeSeriesPoint.favorited).label("favorited"))
         if "num_sellers" in variables:
-            fields.append(func.avg(TimeSeriesPoint.favorited).label("num_sellers"))
+            fields.append(func.avg(TimeSeriesPoint.num_sellers).label("num_sellers"))
 
         query = db.query(*fields).filter(TimeSeriesPoint.item_id == item_id)
 
@@ -99,7 +99,7 @@ def get_graph(
         for i, var in enumerate(variables, start=1):
             if var in ["best_price", "rap", "favorited", "num_sellers"]:
                 data[var] = [r[i] for r in rows]
-
+    
     elif chart_type == "candle":
         if len(variables) != 1 or variables[0] not in ["rap", "best_price"]:
             raise HTTPException(
