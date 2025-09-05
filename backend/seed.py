@@ -3,7 +3,6 @@ from models import Item, TimeSeriesPoint
 from dotenv import load_dotenv
 import os
 import json
-from datetime import datetime
 
 load_dotenv()
 
