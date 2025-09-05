@@ -101,36 +101,51 @@ def get_graph(
                 data[var] = [r[i] for r in rows]
 
     elif chart_type == "candle":
-        if "best_price" not in variables:
-            raise HTTPException(status_code=400, detail="Candles require best_price variable")
+        if len(variables) != 1 or variables[0] not in ["rap", "best_price"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Candle chart requires exactly one variable: 'rap' or 'best_price'"
+            )
 
-        subquery = (
+        var_col = getattr(TimeSeriesPoint, variables[0])
+
+        if variables[0] == "best_price":
+            var_col = var_col + 2 ** 63
+
+        subq = (
             db.query(
                 bucket_expr.label("bucket"),
-                TimeSeriesPoint.timestamp,
-                TimeSeriesPoint.best_price
+                func.first_value(var_col).over(
+                    partition_by=bucket_expr,
+                    order_by=TimeSeriesPoint.timestamp.asc()
+                ).label("open"),
+                func.first_value(var_col).over(
+                    partition_by=bucket_expr,
+                    order_by=TimeSeriesPoint.timestamp.desc()
+                ).label("close"),
+                var_col.label("val"),
             )
             .filter(TimeSeriesPoint.item_id == item_id)
         )
 
         if start_ts:
-            subquery = subquery.filter(TimeSeriesPoint.timestamp >= start_ts)
+            subq = subq.filter(TimeSeriesPoint.timestamp >= start_ts)
         if end_ts:
-            subquery = subquery.filter(TimeSeriesPoint.timestamp <= end_ts)
+            subq = subq.filter(TimeSeriesPoint.timestamp <= end_ts)
 
-        subquery = subquery.subquery()
+        subq = subq.subquery()
 
-        query = db.query(
-            subquery.c.bucket,
-            func.min(subquery.c.best_price).label("low"),
-            func.max(subquery.c.best_price).label("high"),
-            func.first_value(subquery.c.best_price).over(
-                partition_by=subquery.c.bucket, order_by=subquery.c.timestamp
-            ).label("open"),
-            func.last_value(subquery.c.best_price).over(
-                partition_by=subquery.c.bucket, order_by=subquery.c.timestamp
-            ).label("close")
-        ).group_by(subquery.c.bucket).order_by(subquery.c.bucket)
+        query = (
+            db.query(
+                subq.c.bucket,
+                func.max(subq.c.val).label("high"),
+                func.min(subq.c.val).label("low"),
+                func.min(subq.c.open).label("open"),
+                func.min(subq.c.close).label("close"),
+            )
+            .group_by(subq.c.bucket)
+            .order_by(subq.c.bucket)
+        )
 
         rows = query.all()
 
@@ -139,7 +154,7 @@ def get_graph(
             "open": [r.open for r in rows],
             "high": [r.high for r in rows],
             "low": [r.low for r in rows],
-            "close": [r.close for r in rows]
+            "close": [r.close for r in rows],
         }
 
     else:
